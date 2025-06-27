@@ -113,6 +113,21 @@ export default function DashboardPage() {
     }
   }
 
+  const updateLaunchFile = async (projectId: string, launchFile: string) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/launch-file`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ launchFile }),
+      })
+      if (res.ok) {
+        toast({ title: "Launch file updated" })
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Could not update launch file", variant: "destructive" })
+    }
+  }
+
   const formatFileSize = (bytes: number) => (bytes / 1024 / 1024).toFixed(2) + " MB"
 
   const prioritizeLaunch = (files: string[]) => {
@@ -122,22 +137,6 @@ export default function DashboardPage() {
       files[0] ||
       ""
     )
-  }
-
-  const updateLaunchFile = async (projectId: string, launchFile: string) => {
-    try {
-      const res = await fetch(`/api/projects/${projectId}/launch-file`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ launchFile }),
-      })
-      if (res.ok) {
-        await fetchProjects()
-        toast({ title: "Launch file updated" })
-      }
-    } catch (err) {
-      toast({ title: "Error", description: "Could not update launch file", variant: "destructive" })
-    }
   }
 
   if (isLoading || loading) {
@@ -229,11 +228,14 @@ export default function DashboardPage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((project) => {
               const scorm = project.scormFile
-              const url = scorm?.launchUrl || scorm?.publicUrl || scorm?.manifestUrl || ""
-              const isProcessing = scorm?.processing
               const options = scorm?.availableLaunchFiles || []
-              const selected = scorm?.launchFile || prioritizeLaunch(options.map(f => f.fileName))
-
+              const selected = scorm?.launchFile || prioritizeLaunch(options.map((f) => f.fileName))
+              const selectedUrl =
+                options.find((f) => f.fileName === selected)?.url ||
+                scorm?.launchUrl ||
+                scorm?.publicUrl ||
+                scorm?.manifestUrl ||
+                ""
 
               return (
                 <Card key={project._id} className="hover:shadow-lg transition-shadow">
@@ -267,17 +269,41 @@ export default function DashboardPage() {
                           </div>
                         </div>
 
-                        {isProcessing && (
+                        {scorm.processing && (
                           <p className="text-sm text-blue-600 font-medium">Processing...</p>
                         )}
 
-                        {!isProcessing && options.length > 0 && (
+                        {!scorm.processing && options.length > 0 && (
                           <div className="space-y-1">
                             <label className="text-xs text-gray-500">Select Launch File</label>
                             <select
                               className="w-full text-sm border rounded p-1"
                               value={selected}
-                              onChange={(e) => updateLaunchFile(project._id, e.target.value)}
+                              onChange={(e) => {
+                                const newLaunchFile = e.target.value
+                                const selectedFileObj = options.find((f) => f.fileName === newLaunchFile)
+
+                                setProjects((prev) =>
+                                  prev.map((p) =>
+                                    p._id === project._id && p.scormFile
+                                      ? {
+                                          ...p,
+                                          scormFile: {
+                                            ...p.scormFile,
+                                            launchFile: newLaunchFile,
+                                            launchUrl:
+                                              selectedFileObj?.url ||
+                                              p.scormFile.launchUrl ||
+                                              p.scormFile.publicUrl ||
+                                              p.scormFile.manifestUrl,
+                                          },
+                                        }
+                                      : p
+                                  )
+                                )
+
+                                updateLaunchFile(project._id, newLaunchFile)
+                              }}
                             >
                               {options.map((f, i) => (
                                 <option key={i} value={f.fileName}>
@@ -289,13 +315,13 @@ export default function DashboardPage() {
                         )}
 
                         <div className="flex gap-2 flex-wrap">
-                          <Link href={url} target="_blank">
+                          <Link href={selectedUrl} target="_blank">
                             <Button size="sm" className="flex items-center gap-1">
                               <Play className="h-3 w-3" />
                               Launch
                             </Button>
                           </Link>
-                          {scorm.manifestUrl && scorm.manifestUrl !== url && (
+                          {scorm.manifestUrl && scorm.manifestUrl !== selectedUrl && (
                             <Link href={scorm.manifestUrl} target="_blank">
                               <Button size="sm" variant="outline">
                                 <FileText className="h-3 w-3" />
@@ -307,7 +333,7 @@ export default function DashboardPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => {
-                              navigator.clipboard.writeText(url)
+                              navigator.clipboard.writeText(selectedUrl)
                               toast({
                                 title: "URL copied!",
                                 description: "The SCORM URL has been copied to your clipboard.",

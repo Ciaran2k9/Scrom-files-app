@@ -216,9 +216,9 @@ export default function UploadPage({ params }: UploadPageProps) {
         })
 
         // Redirect to dashboard after showing results
-        setTimeout(() => {
+  
           router.push("/dashboard")
-        }, 3000)
+
       } else {
         const error = await response.json()
         console.error("Upload failed:", error)
