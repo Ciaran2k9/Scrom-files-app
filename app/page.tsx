@@ -1,15 +1,41 @@
 "use client"
 
 import { useUser } from "@auth0/nextjs-auth0/client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Upload, BookOpen, User, LogOut } from "lucide-react"
+import { Upload, BookOpen, User, LogOut, Play } from "lucide-react"
+
+interface Project {
+  _id: string
+  name: string
+  description: string
+  createdAt: string
+  scormFile?: {
+    filename: string
+    launchUrl?: string
+    processing?: boolean
+  }
+}
 
 export default function HomePage() {
   const { user, error, isLoading } = useUser()
   const [activeTab, setActiveTab] = useState<"courses" | "upload">("courses")
+  const [projects, setProjects] = useState<Project[]>([])
+
+  useEffect(() => {
+    if (user) {
+      fetch("/api/projects")
+        .then((res) => res.json())
+        .then((data) => {
+          const processed = data.filter(
+            (p: Project) => p.scormFile && !p.scormFile.processing
+          )
+          setProjects(processed)
+        })
+    }
+  }, [user])
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
   if (error) return <div className="min-h-screen flex items-center justify-center">{error.message}</div>
@@ -38,8 +64,8 @@ export default function HomePage() {
           <div className="text-center mb-16">
             <h1 className="text-5xl font-bold text-gray-900 mb-6">Upload SCORM Files with Ease</h1>
             <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-              Upload your SCORM packages and generate embeddable URLs for seamless LMS integration. Start with one free
-              upload, upgrade for unlimited projects.
+              Upload your SCORM packages and generate embeddable URLs for seamless LMS integration.
+              Start with one free upload, upgrade for unlimited projects.
             </p>
             <Link href="/api/auth/login">
               <Button size="lg" className="text-lg px-8 py-3">
@@ -63,7 +89,9 @@ export default function HomePage() {
               <CardHeader>
                 <Upload className="h-12 w-12 text-green-600 mb-4" />
                 <CardTitle>Instant Sharing</CardTitle>
-                <CardDescription>Get a public URL immediately after upload. Perfect for LMS embedding.</CardDescription>
+                <CardDescription>
+                  Get a public URL immediately after upload. Perfect for LMS embedding.
+                </CardDescription>
               </CardHeader>
             </Card>
 
@@ -71,7 +99,9 @@ export default function HomePage() {
               <CardHeader>
                 <Upload className="h-12 w-12 text-purple-600 mb-4" />
                 <CardTitle>Secure & Reliable</CardTitle>
-                <CardDescription>Your files are stored securely with enterprise-grade infrastructure.</CardDescription>
+                <CardDescription>
+                  Your files are stored securely with enterprise-grade infrastructure.
+                </CardDescription>
               </CardHeader>
             </Card>
           </div>
@@ -109,7 +139,7 @@ export default function HomePage() {
           <p className="text-xl text-gray-600">Manage and deploy your SCORM content</p>
         </div>
 
-        {/* Simple Tab Navigation */}
+        {/* Tabs */}
         <div className="mb-6">
           <div className="flex space-x-1 bg-white rounded-lg p-1 shadow-sm">
             <button
@@ -133,7 +163,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Tab Content */}
+        {/* Tab content */}
         {activeTab === "courses" && (
           <Card>
             <CardHeader>
@@ -141,9 +171,29 @@ export default function HomePage() {
               <CardDescription>Manage and launch your uploaded SCORM packages</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-500">
-                No courses uploaded yet. Use the Upload tab to add your first SCORM package.
-              </p>
+              {projects.length === 0 ? (
+                <p className="text-gray-500">No processed SCORM projects found.</p>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {projects.map((project) => (
+                    <Card key={project._id} className="p-4">
+                      <div className="text-lg font-semibold">{project.name}</div>
+                      <div className="text-sm text-gray-600 mb-2">{project.description}</div>
+                      <div className="text-sm text-gray-500 mb-3">
+                        File: {project.scormFile?.filename}
+                      </div>
+                      <div className="flex gap-2">
+                        <Link href={project.scormFile?.launchUrl || "#"} target="_blank">
+                          <Button size="sm">
+                            <Play className="h-4 w-4 mr-1" />
+                            Launch
+                          </Button>
+                        </Link>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -155,12 +205,25 @@ export default function HomePage() {
               <CardDescription>Create a new project and upload your SCORM content</CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href="/dashboard">
-                <Button size="lg" className="w-full">
-                  <Upload className="h-5 w-5 mr-2" />
-                  Go to Dashboard to Upload
-                </Button>
-              </Link>
+              <Button
+                size="lg"
+                className="w-full"
+onClick={async () => {
+  const res = await fetch("/api/user")
+  if (res.ok) {
+    const data = await res.json()
+    if (data.canCreateProject) {
+      window.location.href = "/projects/new"
+    } else {
+      window.location.href = "/upgrade"
+    }
+  }
+}}
+
+              >
+                <Upload className="h-5 w-5 mr-2" />
+                Upload SCORM File
+              </Button>
             </CardContent>
           </Card>
         )}
