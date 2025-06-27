@@ -18,9 +18,11 @@ interface ScormFile {
   manifestUrl?: string
   launchUrl?: string
   launchFile?: string
+  availableLaunchFiles?: { fileName: string; url: string }[];
   totalFiles: number
   uploadedAt: string
   fileSize: number
+  processing?: boolean
 }
 
 interface Project {
@@ -49,42 +51,49 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isLoading && !user) {
       router.push("/api/auth/login")
-      return
     }
 
     if (user) {
-      fetchProjects()
-      fetchUserData()
+      fetchData()
     }
   }, [user, isLoading])
 
+  useEffect(() => {
+    const hasProcessing = projects.some((p) => p.scormFile?.processing)
+    if (!hasProcessing) return
+
+    const interval = setInterval(() => {
+      fetchData()
+    }, 15000)
+
+    return () => clearInterval(interval)
+  }, [projects])
+
+  const fetchData = async () => {
+    await Promise.all([fetchProjects(), fetchUserData()])
+  }
+
   const fetchProjects = async () => {
     try {
-      const response = await fetch("/api/projects")
-      if (response.ok) {
-        const data = await response.json()
-        console.log("Fetched projects:", data) // Debug log
+      const res = await fetch("/api/projects")
+      if (res.ok) {
+        const data = await res.json()
         setProjects(data)
-      } else {
-        console.error("Failed to fetch projects:", response.status)
       }
-    } catch (error) {
-      console.error("Error fetching projects:", error)
+    } catch (err) {
+      console.error("Error fetching projects", err)
     }
   }
 
   const fetchUserData = async () => {
     try {
-      const response = await fetch("/api/user")
-      if (response.ok) {
-        const data = await response.json()
+      const res = await fetch("/api/user")
+      if (res.ok) {
+        const data = await res.json()
         setUserData(data)
-        console.log("User data:", data) // Debug log
-      } else {
-        console.error("Failed to fetch user data:", response.status)
       }
-    } catch (error) {
-      console.error("Error fetching user data:", error)
+    } catch (err) {
+      console.error("Error fetching user data", err)
     } finally {
       setLoading(false)
     }
@@ -92,43 +101,43 @@ export default function DashboardPage() {
 
   const deleteProject = async (projectId: string) => {
     if (!confirm("Are you sure you want to delete this project?")) return
-
     try {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: "DELETE",
-      })
-
-      if (response.ok) {
-        setProjects(projects.filter((p) => p._id !== projectId))
-        // Refresh user data to update project count
+      const res = await fetch(`/api/projects/${projectId}`, { method: "DELETE" })
+      if (res.ok) {
+        setProjects((prev) => prev.filter((p) => p._id !== projectId))
         fetchUserData()
-        toast({
-          title: "Project deleted",
-          description: "Your project has been successfully deleted.",
-        })
+        toast({ title: "Project deleted", description: "Your project has been successfully deleted." })
       }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete project. Please try again.",
-        variant: "destructive",
-      })
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to delete project.", variant: "destructive" })
     }
   }
 
-  const formatFileSize = (bytes: number) => {
-    return (bytes / 1024 / 1024).toFixed(2) + " MB"
+  const formatFileSize = (bytes: number) => (bytes / 1024 / 1024).toFixed(2) + " MB"
+
+  const prioritizeLaunch = (files: string[]) => {
+    const priority = ["story", "index", "main"]
+    return (
+      files.find((f) => priority.some((p) => f.toLowerCase().includes(p))) ||
+      files[0] ||
+      ""
+    )
   }
 
-  const getMainUrl = (scormFile: ScormFile) => {
-    // Prioritize launch URL, then public URL, then manifest URL
-    return scormFile.launchUrl || scormFile.publicUrl || scormFile.manifestUrl || ""
-  }
-
-  const getUrlLabel = (scormFile: ScormFile) => {
-    if (scormFile.launchUrl) return "Launch SCORM"
-    if (scormFile.publicUrl) return "View Content"
-    return "View Manifest"
+  const updateLaunchFile = async (projectId: string, launchFile: string) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/launch-file`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ launchFile }),
+      })
+      if (res.ok) {
+        await fetchProjects()
+        toast({ title: "Launch file updated" })
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Could not update launch file", variant: "destructive" })
+    }
   }
 
   if (isLoading || loading) {
@@ -218,95 +227,114 @@ export default function DashboardPage() {
           </Card>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
-              <Card key={project._id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{project.name}</CardTitle>
-                      <CardDescription className="mt-1">{project.description}</CardDescription>
+            {projects.map((project) => {
+              const scorm = project.scormFile
+              const url = scorm?.launchUrl || scorm?.publicUrl || scorm?.manifestUrl || ""
+              const isProcessing = scorm?.processing
+              const options = scorm?.availableLaunchFiles || []
+              const selected = scorm?.launchFile || prioritizeLaunch(options.map(f => f.fileName))
+
+
+              return (
+                <Card key={project._id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-lg">{project.name}</CardTitle>
+                        <CardDescription className="mt-1">{project.description}</CardDescription>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteProject(project._id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteProject(project._id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {project.scormFile ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Upload className="h-4 w-4" />
-                        <div>
-                          <div className="font-medium">{project.scormFile.filename}</div>
-                          <div className="text-xs text-gray-500">
-                            {formatFileSize(project.scormFile.fileSize)} • {project.scormFile.totalFiles} files
-                            {project.scormFile.launchFile && <span> • Launch: {project.scormFile.launchFile}</span>}
+                  </CardHeader>
+                  <CardContent>
+                    {scorm ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Upload className="h-4 w-4" />
+                          <div>
+                            <div className="font-medium">{scorm.filename}</div>
+                            <div className="text-xs text-gray-500">
+                              {formatFileSize(scorm.fileSize)} • {scorm.totalFiles} files
+                              {selected && <span> • Launch: {selected}</span>}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex gap-2 flex-wrap">
-                        {/* Main Launch/View Button */}
-                        <Link href={getMainUrl(project.scormFile)} target="_blank">
-                          <Button size="sm" className="flex items-center gap-1">
-                            {project.scormFile.launchUrl ? (
+                        {isProcessing && (
+                          <p className="text-sm text-blue-600 font-medium">Processing...</p>
+                        )}
+
+                        {!isProcessing && options.length > 0 && (
+                          <div className="space-y-1">
+                            <label className="text-xs text-gray-500">Select Launch File</label>
+                            <select
+                              className="w-full text-sm border rounded p-1"
+                              value={selected}
+                              onChange={(e) => updateLaunchFile(project._id, e.target.value)}
+                            >
+                              {options.map((f, i) => (
+                                <option key={i} value={f.fileName}>
+                                  {f.fileName}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 flex-wrap">
+                          <Link href={url} target="_blank">
+                            <Button size="sm" className="flex items-center gap-1">
                               <Play className="h-3 w-3" />
-                            ) : (
-                              <ExternalLink className="h-3 w-3" />
-                            )}
-                            {getUrlLabel(project.scormFile)}
-                          </Button>
-                        </Link>
-
-                        {/* Manifest Button (if different from main URL) */}
-                        {project.scormFile.manifestUrl &&
-                          project.scormFile.manifestUrl !== getMainUrl(project.scormFile) && (
-                            <Link href={project.scormFile.manifestUrl} target="_blank">
-                              <Button size="sm" variant="outline" className="flex items-center gap-1">
+                              Launch
+                            </Button>
+                          </Link>
+                          {scorm.manifestUrl && scorm.manifestUrl !== url && (
+                            <Link href={scorm.manifestUrl} target="_blank">
+                              <Button size="sm" variant="outline">
                                 <FileText className="h-3 w-3" />
                                 Manifest
                               </Button>
                             </Link>
                           )}
-
-                        {/* Copy URL Button */}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const urlToCopy = getMainUrl(project.scormFile!)
-                            navigator.clipboard.writeText(urlToCopy)
-                            toast({
-                              title: "URL copied!",
-                              description: "The SCORM URL has been copied to your clipboard.",
-                            })
-                          }}
-                        >
-                          Copy URL
-                        </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(url)
+                              toast({
+                                title: "URL copied!",
+                                description: "The SCORM URL has been copied to your clipboard.",
+                              })
+                            }}
+                          >
+                            Copy URL
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <Link href={`/projects/${project._id}/upload`}>
-                      <Button size="sm" className="w-full">
-                        Upload SCORM File
-                      </Button>
-                    </Link>
-                  )}
-                  <div className="text-xs text-gray-500 mt-3">
-                    Created {new Date(project.createdAt).toLocaleDateString()}
-                    {project.scormFile && (
-                      <span> • Uploaded {new Date(project.scormFile.uploadedAt).toLocaleDateString()}</span>
+                    ) : (
+                      <Link href={`/projects/${project._id}/upload`}>
+                        <Button size="sm" className="w-full">
+                          Upload SCORM File
+                        </Button>
+                      </Link>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    <div className="text-xs text-gray-500 mt-3">
+                      Created {new Date(project.createdAt).toLocaleDateString()}
+                      {scorm && (
+                        <span> • Uploaded {new Date(scorm.uploadedAt).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </main>

@@ -449,7 +449,7 @@ export default function UploadPage({ params }: UploadPageProps) {
                     View All Files ({uploadResult.totalFiles})
                   </summary>
                   <div className="max-h-60 overflow-y-auto space-y-1">
-                    {uploadResult.files.map((file, index) => (
+                    {uploadResult?.files?.map((file, index) => (
                       <div key={index} className="flex items-center justify-between text-xs">
                         <span className="font-mono text-gray-600 break-all">{file.key}</span>
                         <Button

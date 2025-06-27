@@ -12,35 +12,32 @@ const r2Client = new S3Client({
 
 export { r2Client }
 
-export async function uploadToR2(key: string, body: Buffer | Uint8Array | string, contentType?: string) {
+export async function uploadToR2(
+  key: string,
+  body: Buffer | Uint8Array | string,
+  contentType?: string,
+  bucketName: string = process.env.CLOUDFLARE_R2_BUCKET_NAME! // default to main bucket
+) {
   try {
-    console.log(`Attempting to upload to R2: ${key}`)
-    console.log(`Using account ID: ${process.env.CLOUDFLARE_R2_ACCOUNT_ID}`)
-    console.log(`Using endpoint: https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`)
+    console.log(`🟦 Uploading to R2: ${bucketName}/${key}`)
 
     const command = new PutObjectCommand({
-      Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
+      Bucket: bucketName,
       Key: key,
       Body: body,
       ContentType: contentType,
     })
 
     const result = await r2Client.send(command)
-    console.log(`Successfully uploaded: ${key}`)
+    console.log(`✅ Uploaded: ${key} to ${bucketName}`)
     return result
   } catch (error) {
-    console.error(`R2 upload error for ${key}:`, error)
+    console.error(`❌ R2 upload error for ${bucketName}/${key}:`, error)
     throw error
   }
 }
 
-export function getR2Url(key: string) {
-  // Use the public URL you have configured
-  const publicUrl = process.env.CLOUDFLARE_R2_PUBLIC_URL || process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_URL
-  if (publicUrl) {
-    return `${publicUrl}/${key}`
-  }
-
-  // Fallback to default R2 URL format
-  return `https://${process.env.CLOUDFLARE_R2_BUCKET_NAME}.${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`
+export function getR2Url(key: string, customBaseUrl?: string) {
+  const publicUrl = customBaseUrl || process.env.CLOUDFLARE_R2_PUBLIC_URL || process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_URL
+  return `${publicUrl}/${key}`
 }
