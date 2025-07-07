@@ -270,55 +270,43 @@ export default function UploadPage({ params }: UploadPageProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {!file ? (
-                <div className="space-y-4">
-                  {/* Debug info */}
-                  <div className="mb-4 p-2 bg-gray-100 rounded text-xs">
-                    <strong>Debug:</strong> Project ID: {projectId}
-                  </div>
+{!file ? (
+  <div className="space-y-4">
+    {/* Hidden file input */}
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept=".zip"
+      onChange={handleFileSelect}
+      className="hidden"
+      id="file-upload"
+    />
 
-                  {/* Hidden file input */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".zip"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                    id="file-upload"
-                  />
+    {/* Main upload area */}
+    <div
+      className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+        dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+      }`}
+      onClick={triggerFileInput}
+      onDragEnter={handleDrag}
+      onDragLeave={handleDrag}
+      onDragOver={handleDrag}
+      onDrop={handleDrop}
+    >
+      <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+      <div className="space-y-2">
+        <h3 className="text-lg font-semibold">Choose SCORM Package</h3>
+        <p className="text-gray-600">Drop your SCORM ZIP file here or click below to browse</p>
+        <Button variant="outline" type="button" onClick={(e) => {
+          e.stopPropagation()
+          triggerFileInput()
+        }}>
+          Browse Files
+        </Button>
+      </div>
+    </div>
+  </div>
 
-                  {/* Main upload area */}
-                  <div
-                    className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
-                      dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
-                    }`}
-                    onClick={triggerFileInput}
-                    onDragEnter={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDragOver={handleDrag}
-                    onDrop={handleDrop}
-                  >
-                    <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold">Choose SCORM Package</h3>
-                      <p className="text-gray-600">Drop your SCORM ZIP file here or click to browse</p>
-                      <Button variant="outline" type="button" onClick={(e) => e.stopPropagation()}>
-                        Browse Files
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Alternative file input */}
-                  <div className="border rounded-lg p-4 bg-gray-50">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Or use this file selector:</label>
-                    <input
-                      type="file"
-                      accept=".zip"
-                      onChange={handleFileSelect}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                  </div>
-                </div>
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">

@@ -1,5 +1,5 @@
 import { S3Client } from "@aws-sdk/client-s3"
-import { PutObjectCommand } from "@aws-sdk/client-s3"
+import { PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from "@aws-sdk/client-s3"
 
 const r2Client = new S3Client({
   region: "auto",
@@ -40,4 +40,42 @@ export async function uploadToR2(
 export function getR2Url(key: string, customBaseUrl?: string) {
   const publicUrl = customBaseUrl || process.env.CLOUDFLARE_R2_PUBLIC_URL || process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_URL
   return `${publicUrl}/${key}`
+}
+
+export async function deleteFolderFromR2(
+  folderKey: string,
+  bucketName: string = process.env.CLOUDFLARE_R2_BUCKET_NAME!
+) {
+  try {
+    console.log(`🟥 Deleting folder from R2: ${bucketName}/${folderKey}`)
+
+    const listedObjects = await r2Client.send(
+      new ListObjectsV2Command({
+        Bucket: bucketName,
+        Prefix: folderKey,
+      })
+    )
+
+    const keys = listedObjects.Contents?.map((obj) => ({ Key: obj.Key! })) || []
+
+    if (keys.length === 0) {
+      console.log(`ℹ️ No objects found in ${folderKey}, nothing to delete.`)
+      return
+    }
+
+    const deleteCommand = new DeleteObjectsCommand({
+      Bucket: bucketName,
+      Delete: {
+        Objects: keys,
+        Quiet: true,
+      },
+    })
+
+    const deleteResult = await r2Client.send(deleteCommand)
+    console.log(`🗑️ Deleted ${keys.length} objects from ${folderKey}`)
+    return deleteResult
+  } catch (error) {
+    console.error(`❌ Failed to delete folder ${folderKey} from R2:`, error)
+    throw error
+  }
 }

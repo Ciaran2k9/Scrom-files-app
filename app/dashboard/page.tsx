@@ -5,10 +5,13 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Upload, Trash2, Crown, Play, FileText, ExternalLink } from "lucide-react"
+import { Plus, Upload, Trash2, Crown, Play, Code2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+
+
+
 
 interface ScormFile {
   filename: string
@@ -200,7 +203,7 @@ export default function DashboardPage() {
               <Link href="/upgrade">
                 <Button className="flex items-center gap-2">
                   <Crown className="h-4 w-4" />
-                  Upgrade to Create More
+                  Upgrade to Pro
                 </Button>
               </Link>
             )}
@@ -270,7 +273,13 @@ export default function DashboardPage() {
                         </div>
 
                         {scorm.processing && (
-                          <p className="text-sm text-blue-600 font-medium">Processing...</p>
+                          <div className="flex items-center gap-2 text-blue-600">
+                            <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                            </svg>
+                            <span className="text-sm font-medium">Processing file... Please wait.</span>
+                          </div>
                         )}
 
                         {!scorm.processing && options.length > 0 && (
@@ -287,17 +296,17 @@ export default function DashboardPage() {
                                   prev.map((p) =>
                                     p._id === project._id && p.scormFile
                                       ? {
-                                          ...p,
-                                          scormFile: {
-                                            ...p.scormFile,
-                                            launchFile: newLaunchFile,
-                                            launchUrl:
-                                              selectedFileObj?.url ||
-                                              p.scormFile.launchUrl ||
-                                              p.scormFile.publicUrl ||
-                                              p.scormFile.manifestUrl,
-                                          },
-                                        }
+                                        ...p,
+                                        scormFile: {
+                                          ...p.scormFile,
+                                          launchFile: newLaunchFile,
+                                          launchUrl:
+                                            selectedFileObj?.url ||
+                                            p.scormFile.launchUrl ||
+                                            p.scormFile.publicUrl ||
+                                            p.scormFile.manifestUrl,
+                                        },
+                                      }
                                       : p
                                   )
                                 )
@@ -313,36 +322,44 @@ export default function DashboardPage() {
                             </select>
                           </div>
                         )}
-
-                        <div className="flex gap-2 flex-wrap">
-                          <Link href={selectedUrl} target="_blank">
-                            <Button size="sm" className="flex items-center gap-1">
-                              <Play className="h-3 w-3" />
-                              Launch
-                            </Button>
-                          </Link>
-                          {scorm.manifestUrl && scorm.manifestUrl !== selectedUrl && (
-                            <Link href={scorm.manifestUrl} target="_blank">
-                              <Button size="sm" variant="outline">
-                                <FileText className="h-3 w-3" />
-                                Manifest
+                        {!scorm.processing && (
+                          <div className="flex gap-2 flex-wrap">
+                            <Link href={selectedUrl} target="_blank">
+                              <Button size="sm" className="flex items-center gap-1">
+                                <Play className="h-3 w-3" />
+                                Launch
                               </Button>
                             </Link>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              navigator.clipboard.writeText(selectedUrl)
-                              toast({
-                                title: "URL copied!",
-                                description: "The SCORM URL has been copied to your clipboard.",
-                              })
-                            }}
-                          >
-                            Copy URL
-                          </Button>
-                        </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const iframeCode = `<iframe src="${selectedUrl}" width="100%" height="600" style="border:none;"></iframe>`
+                                navigator.clipboard.writeText(iframeCode)
+                                toast({
+                                  title: "Embed code copied!",
+                                  description: "You can now paste this iframe into your site or LMS.",
+                                })
+                              }}
+                            >
+                              <Code2 className="h-3 w-3" />
+                              Copy Embed Code
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                navigator.clipboard.writeText(selectedUrl)
+                                toast({
+                                  title: "URL copied!",
+                                  description: "The SCORM URL has been copied to your clipboard.",
+                                })
+                              }}
+                            >
+                              Copy URL
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <Link href={`/projects/${project._id}/upload`}>

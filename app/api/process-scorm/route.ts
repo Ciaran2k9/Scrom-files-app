@@ -7,6 +7,12 @@ import { ObjectId } from "mongodb"
 import JSZip from "jszip"
 import { randomUUID } from "crypto"
 
+// Helper to strip filename from URL, leaving folder URL only
+function getBaseUrl(url: string) {
+  if (!url) return url
+  return url.replace(/\/[^\/]*$/, "")
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { projectId } = await request.json()
@@ -43,17 +49,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-// Find all .html and .htm files (no root-level restriction)
-const htmlFiles = uploadedFiles.filter((f) => {
-  const key = f.key.toLowerCase()
-  return key.endsWith(".html") || key.endsWith(".htm")
-})
+    // Find all .html and .htm files (no root-level restriction)
+    const htmlFiles = uploadedFiles.filter((f) => {
+      const key = f.key.toLowerCase()
+      return key.endsWith(".html") || key.endsWith(".htm")
+    })
 
-const availableLaunchFiles = htmlFiles.map((f) => ({
-  fileName: f.key.split("/").pop() || "unknown.html",
-  url: f.url,
-}))
-
+    const availableLaunchFiles = htmlFiles.map((f) => ({
+      fileName: f.key.split("/").pop() || "unknown.html",
+      url: f.url,
+    }))
 
     let launchUrl = ""
     let launchFile = ""
@@ -79,7 +84,7 @@ const availableLaunchFiles = htmlFiles.map((f) => ({
       filename: project?.scormFile?.filename || "SCORM Package",
       packageId,
       packageFolder,
-      publicUrl: launchUrl || manifestFile,
+      publicUrl: getBaseUrl(launchUrl) || manifestFile,  // <-- HERE: folder URL only
       manifestUrl: manifestFile,
       launchUrl,
       launchFile,
